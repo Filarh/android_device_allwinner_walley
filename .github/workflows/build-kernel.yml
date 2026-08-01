@@ -8,13 +8,12 @@ name: Compilar kernel
 #
 # ESTE PRIMER BUILD VA SIN KernelSU Y SIN EL WiFi, a proposito. Lo unico que
 # tiene que contestar es: ¿el arbol produce un kernel que arranca en esta caja?
-# Meter tres variables a la vez haria imposible saber cual fallo.
 #
-# Referencia contra la que hay que comparar (kernel de fabrica, extraido del
-# boot.img de la caja):
+# Referencia de fabrica (extraida del boot.img de la caja):
 #   Image        18651144 bytes
 #   version      4.9.170 #38 SMP PREEMPT, gcc Linaro 5.3-2016.05
 #   magia ARM64  "ARMd" en el offset 56
+#   la particion boot son 33554432 bytes y hoy sobran 14006272 (41,7%)
 
 "on":
   workflow_dispatch:
@@ -22,13 +21,15 @@ name: Compilar kernel
       kernel_branch:
         description: "Rama del arbol de OrangePi"
         default: "orange-pi-4.9-sun50iw9"
-      config:
-        description: "config a usar: 'vivo' (el de la caja) o el nombre de un defconfig del arbol"
-        default: "vivo"
+      gcc:
+        description: "Version de gcc cruzado (9, 10, 11, 12)"
+        default: "9"
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # 22.04 y no latest: 24.04 solo trae gcc 12/13/14, demasiado nuevos para
+    # codigo de 4.9. El kernel original se hizo con Linaro GCC 5.3 de 2016.
+    runs-on: ubuntu-22.04
     steps:
       - name: Traer nuestro repo
         uses: actions/checkout@v4
@@ -38,94 +39,109 @@ jobs:
       - name: Espacio disponible
         run: df -h /
 
-      - name: Dependencias
+      # OJO: todos los pasos llevan 'set -o pipefail'. El primer intento fallo
+      # en silencio porque 'make ... | tail -60' devuelve el codigo del tail, no
+      # el del make: dos pasos quedaron marcados success sin haber compilado
+      # nada. Ademas cada paso critico verifica su resultado explicitamente.
+      - name: Dependencias y toolchain
+        shell: bash
         run: |
+          set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq bc bison flex libssl-dev build-essential \
             libncurses-dev python3 rsync kmod cpio device-tree-compiler
-
-      # Kernel 4.9 no compila limpio con GCC moderno. Este es el toolchain que
-      # AOSP usaba para kernels de esta epoca; el original de la caja fue
-      # Linaro GCC 5.3-2016.05 (segun /proc/version), que es de la misma familia.
-      - name: Toolchain aarch64 de AOSP
-        run: |
-          git clone --depth=1 \
-            https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9 \
-            toolchain
-          echo "--- version ---"
-          ./toolchain/bin/aarch64-linux-android-gcc --version | head -1
+          # Se prueban varias versiones porque la disponibilidad cambia entre
+          # imagenes del runner. Se usa la primera que instale.
+          CC=""
+          for v in "${{ github.event.inputs.gcc }}" 9 10 11 12; do
+            if sudo apt-get install -y -qq "gcc-$v-aarch64-linux-gnu" 2>/dev/null; then
+              CC="aarch64-linux-gnu-gcc-$v"; break
+            fi
+          done
+          if [ -z "$CC" ]; then
+            sudo apt-get install -y -qq gcc-aarch64-linux-gnu
+            CC="aarch64-linux-gnu-gcc"
+          fi
+          command -v "$CC" >/dev/null || { echo "ERROR: no hay compilador cruzado"; exit 1; }
+          echo "CCOMP=$CC" >> "$GITHUB_ENV"
+          echo "--- compilador elegido ---"
+          "$CC" --version | head -1
 
       - name: Clonar el kernel
+        shell: bash
         run: |
+          set -euo pipefail
           git clone --depth=1 --single-branch \
-            -b ${{ github.event.inputs.kernel_branch }} \
+            -b "${{ github.event.inputs.kernel_branch }}" \
             https://github.com/orangepi-xunlong/linux-orangepi.git kernel
           cd kernel
           echo "--- version del arbol ---"
           head -5 Makefile
+          test -d arch/arm64 || { echo "ERROR: el arbol no tiene arch/arm64"; exit 1; }
           du -sh .
 
       - name: Preparar el config
+        shell: bash
         run: |
+          set -euo pipefail
           cd kernel
-          if [ "${{ github.event.inputs.config }}" = "vivo" ]; then
-            echo "usando el config EXTRAIDO DE LA CAJA (/proc/config.gz)"
-            cp ../device_tree/kernel/walley_defconfig .config
-          else
-            echo "usando el defconfig del arbol: ${{ github.event.inputs.config }}"
-            make ARCH=arm64 ${{ github.event.inputs.config }}
-          fi
-          export PATH=$PWD/../toolchain/bin:$PATH
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- olddefconfig
-          echo "--- que cambio olddefconfig respecto de lo que pedimos ---"
-          if [ "${{ github.event.inputs.config }}" = "vivo" ]; then
-            diff <(grep '^CONFIG' ../device_tree/kernel/walley_defconfig | sort) \
-                 <(grep '^CONFIG' .config | sort) | head -40 || true
-          fi
+          cp ../device_tree/kernel/walley_defconfig .config
+          # El gcc de Ubuntu se llama aarch64-linux-gnu-gcc-N; el kernel espera
+          # CROSS_COMPILE + "gcc", asi que se apunta CC directamente.
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$CCOMP" olddefconfig
+          echo "--- que cambio olddefconfig respecto del config de la caja ---"
+          diff <(grep '^CONFIG' ../device_tree/kernel/walley_defconfig | sort) \
+               <(grep '^CONFIG' .config | sort) | head -60 || true
+          echo "--- opciones finales: $(grep -c '^CONFIG' .config) ---"
 
       - name: Compilar
+        shell: bash
         run: |
+          set -euo pipefail
           cd kernel
-          export PATH=$PWD/../toolchain/bin:$PATH
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-android- -j$(nproc) Image modules 2>&1 | tail -60
+          # sin pipe a tail: enmascara el codigo de salida
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$CCOMP" \
+               KCFLAGS="-Wno-error" -j"$(nproc)" Image modules
 
-      - name: Anatomia del resultado
-        if: always()
+      - name: Verificar el resultado
+        shell: bash
         run: |
+          set -euo pipefail
           cd kernel
-          echo "===== Image ====="
-          if [ -f arch/arm64/boot/Image ]; then
-            ls -l arch/arm64/boot/Image
-            echo "  de fabrica: 18651144 bytes"
-            printf '  magia en offset 56: '
-            dd if=arch/arm64/boot/Image bs=1 skip=56 count=4 2>/dev/null | xxd -p
-            echo "  (de fabrica debe ser 41524d64 = ARMd)"
-          else
-            echo "  NO SE GENERO"
-          fi
+          IMG=arch/arm64/boot/Image
+          test -f "$IMG" || { echo "ERROR: no se genero el Image"; exit 1; }
+          SZ=$(stat -c %s "$IMG")
+          echo "  Image      : $SZ bytes"
+          echo "  de fabrica : 18651144 bytes"
+          echo "  diferencia : $((SZ - 18651144)) bytes"
+          echo "  cabe en boot (sobran 14006272 sobre el de fabrica): $([ $SZ -lt 32000000 ] && echo SI || echo NO)"
+          MAGIA=$(dd if="$IMG" bs=1 skip=56 count=4 2>/dev/null | xxd -p)
+          echo "  magia offset 56: $MAGIA  (debe ser 41524d64 = ARMd)"
+          [ "$MAGIA" = "41524d64" ] || { echo "ERROR: no tiene la magia de Image ARM64"; exit 1; }
           echo
-          echo "===== version ====="
-          cat include/config/kernel.release 2>/dev/null || true
-          strings arch/arm64/boot/Image 2>/dev/null | grep -m1 "Linux version" || true
+          echo "  release: $(cat include/config/kernel.release 2>/dev/null)"
           echo
-          echo "===== modulos generados ====="
-          find . -name '*.ko' | wc -l
-          find . -name '*.ko' -printf '%10s %f\n' | sort -rn | head -20
+          N=$(find . -name '*.ko' | wc -l)
+          echo "  modulos generados: $N"
+          [ "$N" -gt 0 ] || { echo "ERROR: no se genero ningun modulo"; exit 1; }
+          find . -name '*.ko' -printf '%10s %f\n' | sort -rn | head -15
           echo
-          echo "===== los que la caja necesita ====="
-          for m in mali_kbase ssv6x5x uvcvideo videobuf2_core; do
-            printf '  %-18s ' "$m"
-            find . -name "$m.ko" -printf '%s bytes  %p\n' 2>/dev/null | head -1 || echo "NO"
+          echo "  --- los que la caja necesita ---"
+          for m in mali_kbase uvcvideo videobuf2_core; do
+            F=$(find . -name "$m.ko" | head -1)
+            printf '  %-18s %s\n' "$m" "${F:-NO SE GENERO}"
           done
 
       - name: Empaquetar
         if: always()
+        shell: bash
         run: |
           mkdir -p salida/modules
           cp kernel/arch/arm64/boot/Image salida/ 2>/dev/null || true
           cp kernel/.config salida/config-usado 2>/dev/null || true
+          cp kernel/include/config/kernel.release salida/ 2>/dev/null || true
           find kernel -name '*.ko' -exec cp {} salida/modules/ \; 2>/dev/null || true
-          ls -lR salida | head -40
+          du -sh salida; ls -l salida
 
       - name: Subir
         if: always()

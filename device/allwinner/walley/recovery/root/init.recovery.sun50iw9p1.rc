@@ -15,3 +15,22 @@ service multi_ir /system/bin/multi_ir
 
 on boot
     start multi_ir
+
+# ADB por red dentro de TWRP.
+#
+# adbd lee service.adb.tcp.port al arrancar: con un puerto puesto escucha por
+# TCP en vez de por USB. La caja no tiene nada enchufado al USB y toda la
+# cirugia se hace por LAN, asi que sin esto el recovery es una caja negra --
+# comprobado: tras flashear TWRP se perdio el contacto y solo quedaba mirar la
+# tele para saber si habia arrancado.
+#
+# La interfaz la levanta el kernel con el parametro ip= de BOARD_KERNEL_CMDLINE,
+# no hace falta ningun servicio de red aca.
+#
+# Va en 'on boot' y no mas tarde porque adbd tiene que ver la propiedad ya
+# puesta cuando arranca; si se pone despues hay que reiniciarlo a mano.
+on init
+    setprop service.adb.tcp.port 5555
+
+on property:sys.boot_completed=1
+    setprop service.adb.tcp.port 5555

@@ -48,6 +48,15 @@ BOARD_MKBOOTIMG_ARGS += --tags_offset $(BOARD_KERNEL_TAGS_OFFSET)
 BOARD_MKBOOTIMG_ARGS += --dtb_offset $(BOARD_DTB_OFFSET)
 BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOTIMG_HEADER_VERSION)
 BOARD_KERNEL_CMDLINE := selinux=1 androidboot.selinux=permissive androidboot.dtbo_idx=0,1,2 buildvariant=eng
+# Red en el recovery ANTES del userspace. Toda la cirugia de esta caja se hace
+# por LAN, y adbd en TWRP solo escucha por USB: quedarse ciego justo dentro del
+# recovery es la peor combinacion posible.
+# El kernel trae CONFIG_IP_PNP=y (verificado en /proc/config.gz) y la caja esta
+# por cable en eth0, asi que esta linea levanta la interfaz sin depender de
+# dhcpcd ni de ningun servicio. Es el mismo mecanismo que ya usaba el recovery
+# parcheado que teniamos (androidboot.recpatch=v3), o sea que esta probado aca.
+# Formato: ip=<cliente>:<servidor>:<gateway>:<mascara>:<host>:<iface>:<autoconf>
+BOARD_KERNEL_CMDLINE += ip=192.168.1.131::192.168.1.1:255.255.255.0:tvbox:eth0:off
 
 # Kernel prebuilt sacado del recovery de fabrica (18651144 bytes, sin comprimir)
 TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/kernel
@@ -123,7 +132,13 @@ TW_EXCLUDE_TWRPAPP := true
 TW_EXCLUDE_MTP := true
 TW_EXCLUDE_NANO := true
 TW_EXCLUDE_BASH := true
-TW_EXCLUDE_LPTOOLS := true
+# lptools NO se excluye. Fue un recorte por tamano y resulto ser el equivocado:
+# es la unica herramienta que rehace el mapeo dm-linear de una particion logica
+# con force_writable=true (lptools.cc lineas 209 y 322). TWRP por su cuenta llama
+# a CreateLogicalPartitions(superPart), la sobrecarga que honra el atributo
+# READONLY de los metadatos de super, y por eso system/vendor/product quedan en
+# dispositivos protegidos contra escritura: montarlos rw da EACCES, que TWRP
+# muestra como "permission denied". Sin lptools no hay forma de flashear una ROM.
 TW_EXCLUDE_TZDATA := true
 # gzip comprime bastante mejor que lz4 para el ramdisk. Si ya estaba en gzip
 # esto no hace nada; si estaba en lz4, es el mayor ahorro disponible.

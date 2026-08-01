@@ -137,6 +137,14 @@ jobs:
         run: |
           set -euo pipefail
           cd kernel
+          # No todos los arboles traen el driver de Mali. El de OrangePi si (en
+          # modules/gpu, fuera del arbol, estilo lichee); el de
+          # lineage-on-allwinner no. Sin esta guarda el job falla por algo que
+          # no es un error, y encima marca en rojo un kernel que compilo bien.
+          if [ ! -d modules/gpu ]; then
+            echo "este arbol no trae modules/gpu -- se omite la GPU"
+            exit 0
+          fi
           mkdir -p ../salida-mod
           # SIN -j en el make de afuera. El Makefile declara 'all: build install'
           # sin dependencia entre los dos targets, asi que con -j corren EN

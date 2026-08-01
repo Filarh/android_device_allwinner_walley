@@ -1,6 +1,6 @@
 name: Compilar TWRP
 
-on:
+"on":
   workflow_dispatch:
     inputs:
       manifest_branch:

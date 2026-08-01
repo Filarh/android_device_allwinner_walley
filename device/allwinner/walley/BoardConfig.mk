@@ -115,9 +115,19 @@ RECOVERY_SDCARD_ON_DATA := true
 # --- Tamano: la particion son 33554432 bytes y el primer build dio 34461696,
 # --- o sea 886 KB de mas. El kernel son 18,6 MB sin comprimir y no se puede
 # --- tocar, asi que hay que recortar del ramdisk.
+# Segunda tanda: el primer recorte llevo 34461696 -> 34025472 (426 KB menos).
+# Faltan 460 KB de un ramdisk de 14,5 MB, o sea un 3%.
+# Referencia: el ramdisk del recovery de FABRICA son 7,1 MB. Sobra de donde.
 TW_EXCLUDE_APEX := true
 TW_EXCLUDE_TWRPAPP := true
 TW_EXCLUDE_MTP := true
+TW_EXCLUDE_NANO := true
+TW_EXCLUDE_BASH := true
+TW_EXCLUDE_LPTOOLS := true
+TW_EXCLUDE_TZDATA := true
+# gzip comprime bastante mejor que lz4 para el ramdisk. Si ya estaba en gzip
+# esto no hace nada; si estaba en lz4, es el mayor ahorro disponible.
+BOARD_RAMDISK_USE_LZ4 := false
 TW_NO_SCREEN_TIMEOUT := true
 TW_NO_USB_STORAGE := true
 TW_INPUT_BLACKLIST := "hbtp_vm"

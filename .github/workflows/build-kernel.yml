@@ -23,7 +23,10 @@ name: Compilar kernel
         default: "orange-pi-4.9-sun50iw9"
       gcc:
         description: "Version de gcc cruzado (9, 10, 11, 12)"
-        default: "9"
+        default: "11"
+      config:
+        description: "'vivo' = el config extraido de la caja; o el nombre de un defconfig del arbol"
+        default: "vivo"
 
 jobs:
   build:
@@ -85,11 +88,17 @@ jobs:
         run: |
           set -euo pipefail
           cd kernel
-          cp ../device_tree/kernel/walley_defconfig .config
+          if [ "${{ github.event.inputs.config }}" = "vivo" ]; then
+            echo "usando el config EXTRAIDO DE LA CAJA"
+            cp ../device_tree/kernel/walley_defconfig .config
+          else
+            echo "usando el defconfig DEL ARBOL: ${{ github.event.inputs.config }}"
+            make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$CCOMP" LOCALVERSION= "${{ github.event.inputs.config }}"
+          fi
           # El gcc de Ubuntu se llama aarch64-linux-gnu-gcc-N; el kernel espera
           # CROSS_COMPILE + "gcc", asi que se apunta CC directamente.
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$CCOMP" LOCALVERSION= olddefconfig
-          echo "--- que cambio olddefconfig respecto del config de la caja ---"
+          echo "--- diferencias contra el config de la caja ---"
           diff <(grep '^CONFIG' ../device_tree/kernel/walley_defconfig | sort) \
                <(grep '^CONFIG' .config | sort) | head -60 || true
           echo "--- opciones finales: $(grep -c '^CONFIG' .config) ---"

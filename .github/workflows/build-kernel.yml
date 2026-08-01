@@ -103,6 +103,30 @@ jobs:
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$CCOMP" \
                KCFLAGS="-Wno-error" -j"$(nproc)" Image modules
 
+      # La GPU NO la compila 'make modules'. El Makefile principal solo recorre
+      # drivers/ sound/ firmware/, y el driver de Mali vive en modules/gpu/, que
+      # queda fuera del arbol: Allwinner lo construye como modulo externo desde
+      # su sistema 'lichee'. Por eso el primer build salio sin mali_kbase, y sin
+      # ese modulo no hay graficos.
+      #
+      # modules/gpu/Makefile lee CONFIG_SUNXI_GPU_TYPE del .config del kernel
+      # (en esta caja vale "mali-g31") y de ahi deduce que hay que compilar
+      # mali-bifrost/driver, que produce mali_kbase.ko y
+      # dma-buf-test-exporter.ko. Los dos estan en /vendor/modules de la caja.
+      - name: Compilar la GPU (modulo externo)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd kernel
+          mkdir -p ../salida-mod
+          make -C modules/gpu \
+            LICHEE_KDIR="$PWD" \
+            LICHEE_MOD_DIR="$PWD/../salida-mod" \
+            ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$CCOMP" \
+            -j"$(nproc)" build install
+          echo "--- modulos de GPU generados ---"
+          find modules/gpu -name '*.ko' -printf '%10s %p\n' | sort -rn
+
       - name: Verificar el resultado
         shell: bash
         run: |
@@ -127,7 +151,7 @@ jobs:
           find . -name '*.ko' -printf '%10s %f\n' | sort -rn | head -15
           echo
           echo "  --- los que la caja necesita ---"
-          for m in mali_kbase uvcvideo videobuf2_core; do
+          for m in mali_kbase dma-buf-test-exporter uvcvideo; do
             F=$(find . -name "$m.ko" | head -1)
             printf '  %-18s %s\n' "$m" "${F:-NO SE GENERO}"
           done
@@ -141,6 +165,7 @@ jobs:
           cp kernel/.config salida/config-usado 2>/dev/null || true
           cp kernel/include/config/kernel.release salida/ 2>/dev/null || true
           find kernel -name '*.ko' -exec cp {} salida/modules/ \; 2>/dev/null || true
+          cp salida-mod/*.ko salida/modules/ 2>/dev/null || true
           du -sh salida; ls -l salida
 
       - name: Subir

@@ -88,7 +88,7 @@ jobs:
           cp ../device_tree/kernel/walley_defconfig .config
           # El gcc de Ubuntu se llama aarch64-linux-gnu-gcc-N; el kernel espera
           # CROSS_COMPILE + "gcc", asi que se apunta CC directamente.
-          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$CCOMP" olddefconfig
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$CCOMP" LOCALVERSION= olddefconfig
           echo "--- que cambio olddefconfig respecto del config de la caja ---"
           diff <(grep '^CONFIG' ../device_tree/kernel/walley_defconfig | sort) \
                <(grep '^CONFIG' .config | sort) | head -60 || true
@@ -100,8 +100,15 @@ jobs:
           set -euo pipefail
           cd kernel
           # sin pipe a tail: enmascara el codigo de salida
+          # LOCALVERSION= es OBLIGATORIO. scripts/setlocalversion agrega un "+" al
+          # nombre cuando se compila desde un clon git cuyo HEAD no esta en un tag,
+          # y lo hace JUSTAMENTE cuando CONFIG_LOCALVERSION_AUTO esta apagado. El
+          # primer build salio "4.9.170+" contra "4.9.170" de fabrica. Con
+          # CONFIG_MODVERSIONS=y ese unico caracter cambia el vermagic y los 28
+          # modulos del vendor rebotan: sin WiFi y sin GPU. La variable tiene que
+          # estar DEFINIDA y vacia, no ausente.
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$CCOMP" \
-               KCFLAGS="-Wno-error" -j"$(nproc)" Image modules
+               LOCALVERSION= KCFLAGS="-Wno-error" -j"$(nproc)" Image modules
 
       # La GPU NO la compila 'make modules'. El Makefile principal solo recorre
       # drivers/ sound/ firmware/, y el driver de Mali vive en modules/gpu/, que
@@ -122,7 +129,7 @@ jobs:
           make -C modules/gpu \
             LICHEE_KDIR="$PWD" \
             LICHEE_MOD_DIR="$PWD/../salida-mod" \
-            ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$CCOMP" \
+            ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$CCOMP" LOCALVERSION= \
             -j"$(nproc)" build install
           echo "--- modulos de GPU generados ---"
           find modules/gpu -name '*.ko' -printf '%10s %p\n' | sort -rn
@@ -143,7 +150,9 @@ jobs:
           echo "  magia offset 56: $MAGIA  (debe ser 41524d64 = ARMd)"
           [ "$MAGIA" = "41524d64" ] || { echo "ERROR: no tiene la magia de Image ARM64"; exit 1; }
           echo
-          echo "  release: $(cat include/config/kernel.release 2>/dev/null)"
+          REL=$(cat include/config/kernel.release 2>/dev/null)
+          echo "  release: $REL   (de fabrica: 4.9.170)"
+          [ "$REL" = "4.9.170" ] || { echo "ERROR: el release no coincide con el de fabrica. Con MODVERSIONS=y esto rompe los 28 modulos del vendor."; exit 1; }
           echo
           N=$(find . -name '*.ko' | wc -l)
           echo "  modulos generados: $N"
@@ -164,6 +173,10 @@ jobs:
           cp kernel/arch/arm64/boot/Image salida/ 2>/dev/null || true
           cp kernel/.config salida/config-usado 2>/dev/null || true
           cp kernel/include/config/kernel.release salida/ 2>/dev/null || true
+          # Module.symvers trae los CRC de todos los simbolos exportados. Es lo que
+          # hace falta para comparar contra los que EXIGEN los .ko de fabrica y
+          # decidir si el proyecto es viable.
+          cp kernel/Module.symvers salida/ 2>/dev/null || true
           find kernel -name '*.ko' -exec cp {} salida/modules/ \; 2>/dev/null || true
           cp salida-mod/*.ko salida/modules/ 2>/dev/null || true
           du -sh salida; ls -l salida

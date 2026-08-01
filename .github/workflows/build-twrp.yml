@@ -79,7 +79,32 @@ jobs:
         if: always()
         run: df -h /
 
+      # Corre pase lo que pase. Si el ensamblado final falla por tamano, el arbol
+      # del ramdisk YA existe: esto dice exactamente que ocupa, en vez de tener
+      # que adivinar que TW_EXCLUDE_* poner en la proxima vuelta.
+      - name: Anatomia del ramdisk
+        if: always()
+        run: |
+          O=twrp/out/target/product/walley
+          R=$O/recovery/root
+          echo "===== piezas de la imagen ====="
+          for f in kernel "$O/recovery/kernel" $O/dtb.img $O/ramdisk-recovery.cpio.gz $O/ramdisk-recovery.cpio.lz4; do
+            [ -f "$f" ] && printf '%12d  %s\n' "$(stat -c %s "$f")" "$f"
+          done
+          [ -d "$R" ] || { echo "no existe $R"; exit 0; }
+          echo
+          echo "===== ramdisk SIN comprimir ====="
+          du -sh "$R"
+          echo
+          echo "===== directorios mas pesados ====="
+          du -sk "$R"/* "$R"/system/* 2>/dev/null | sort -rn | head -25
+          echo
+          echo "===== 40 archivos mas grandes ====="
+          find "$R" -type f -printf '%s\t%p\n' 2>/dev/null | sort -rn | head -40 \
+            | awk -F'\t' '{printf "%10.1f KB  %s\n", $1/1024, $2}'
+
       - name: Subir la imagen
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: recovery-walley

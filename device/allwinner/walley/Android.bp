@@ -1,0 +1,24 @@
+// El binario del control remoto infrarrojo, sacado del recovery de fabrica.
+//
+// NO se puede copiar con PRODUCT_COPY_FILES: AOSP rechaza binarios ELF ahi con
+//   error: found ELF prebuilt in PRODUCT_COPY_FILES,
+//          use cc_prebuilt_binary / cc_prebuilt_library_shared instead
+// Hay que declararlo como modulo de Soong, que es lo que hace esto.
+//
+// Es el multi_ir DEL RECOVERY (20332 bytes), no el de /system (34740): no usa
+// binder y solo pide las siete librerias estandar, que TWRP ya tiene.
+cc_prebuilt_binary {
+    name: "multi_ir",
+    srcs: ["prebuilt/multi_ir"],
+
+    // ELF32 ARM: verificado desmontando el ramdisk de fabrica.
+    compile_multilib: "32",
+
+    // Es un blob de terceros: no tocarlo ni validarlo contra nuestro toolchain.
+    strip: { none: true },
+    check_elf_files: false,
+
+    // Va al ramdisk del recovery, no al sistema.
+    recovery: true,
+    proprietary: true,
+}

@@ -11,7 +11,5 @@ PRODUCT_COPY_FILES += $(foreach f,$(wildcard $(LOCAL_PATH)/recovery/root/system/
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/recovery.fstab:recovery/root/system/etc/recovery.fstab
 
-PRODUCT_PACKAGES += \
-    bootctrl \
-    android.hardware.boot@1.0-impl \
-    android.hardware.boot@1.0-service
+# Sin bootctrl ni el HAL de boot: esta caja NO es A/B. Tiene particiones
+# boot y recovery dedicadas y un solo slot.

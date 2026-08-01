@@ -10,7 +10,10 @@ DEVICE_PATH := device/allwinner/walley
 # recovery de fabrica: init, linker, recovery, sh y toybox son TODOS ELF32 ARM
 # y no existe /system/lib64. Poner arm64 aca produce un TWRP que no corre.
 TARGET_ARCH := arm
-TARGET_ARCH_VARIANT := armv7-a-neon
+# armv8-a, no armv7-a-neon: el Cortex-A53 ES ARMv8-A, solo que ejecutando
+# codigo de 32 bits (AArch32). El build de TWRP rechaza armv7-a-neon con
+#   TARGET_linux-arm.mk:53: Incorrect TARGET_ARCH_VARIANT. Use armv8-a instead.
+TARGET_ARCH_VARIANT := armv8-a
 TARGET_CPU_ABI := armeabi-v7a
 TARGET_CPU_ABI2 := armeabi
 TARGET_CPU_VARIANT := cortex-a53

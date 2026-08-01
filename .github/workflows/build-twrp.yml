@@ -66,6 +66,24 @@ jobs:
           cp -r device_tree/device/allwinner/walley twrp/device/allwinner/
           ls -la twrp/device/allwinner/walley
 
+      # lptools no viene en el manifiesto minimo de TWRP: hay que traerlo.
+      # Es la unica herramienta que rehace el mapeo dm-linear de una particion
+      # logica con force_writable=true, o sea la unica forma de escribir en
+      # system/vendor/product, que en super estan marcadas READONLY.
+      #
+      # Ademas su Android.bp no declara recovery_available, asi que aunque se
+      # compile no entra al ramdisk del recovery. Se parchea aca en vez de
+      # mantener un fork: es una linea y queda a la vista en el log.
+      - name: Traer lptools
+        run: |
+          cd twrp
+          rm -rf vendor/lptools
+          git clone --depth=1 https://github.com/phhusson/vendor_lptools.git vendor/lptools
+          sed -i '0,/name: "lptools",/s//name: "lptools",\n    recovery_available: true,/' vendor/lptools/Android.bp
+          echo "--- Android.bp resultante ---"
+          head -14 vendor/lptools/Android.bp
+          grep -q 'recovery_available: true' vendor/lptools/Android.bp || { echo "ERROR: el parche no se aplico"; exit 1; }
+
       - name: Compilar
         run: |
           cd twrp

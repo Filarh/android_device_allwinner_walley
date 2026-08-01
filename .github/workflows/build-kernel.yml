@@ -30,6 +30,9 @@ name: Compilar kernel
       config:
         description: "'vivo' = el config extraido de la caja; o el nombre de un defconfig del arbol"
         default: "vivo"
+      kernelsu:
+        description: "Integrar KernelSU (backslashxx, hooks manuales): si / no"
+        default: "no"
 
 jobs:
   build:
@@ -121,9 +124,43 @@ jobs:
             echo "usando el defconfig DEL ARBOL: ${{ github.event.inputs.config }}"
             make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$CCOMP" LOCALVERSION= "${{ github.event.inputs.config }}"
           fi
+
+          # ---------------- KernelSU ----------------
+          # Se hace ANTES del olddefconfig para que sus symbols entren al .config.
+          #
+          # Fork: backslashxx, el unico que da soporte real a non-GKI 3.0-5.4.
+          # (el README dice "GKI 2.0 / 4.14+" pero esta heredado del upstream y
+          # NO describe a este fork; la info real esta en sus issues.)
+          #
+          # Hooks MANUALES y no kprobes: esta caja tiene CONFIG_KPROBES apagado,
+          # asi que KSU_KPROBES_KSUD -que vendria por defecto- queda deshabilitado
+          # y los hooks de newfstat/sys_reboot pasan a ser obligatorios.
+          if [ "${{ github.event.inputs.kernelsu }}" = "si" ]; then
+            echo "=== integrando KernelSU (backslashxx) ==="
+            curl -LSs --retry 3 \
+              "https://raw.githubusercontent.com/backslashxx/KernelSU/master/kernel/setup.sh" \
+              | bash -s master
+            test -d drivers/kernelsu || { echo "ERROR: setup.sh no dejo drivers/kernelsu"; exit 1; }
+            echo "--- version del driver ---"
+            git -C KernelSU log -1 --format='%H %ad %s' 2>/dev/null || true
+            echo "=== aplicando hooks manuales de syscall ==="
+            python3 ../device_tree/kernel/aplicar-hooks-ksu.py .
+            # el patcher ya aborta si un ancla no calza; esto es cinturon y tiradores
+            grep -q ksu_handle_execveat fs/exec.c || { echo "ERROR: falta el hook de execve"; exit 1; }
+            grep -q ksu_handle_sys_reboot kernel/reboot.c || { echo "ERROR: falta el hook de reboot"; exit 1; }
+            echo "CONFIG_KSU=y" >> .config
+            echo "# CONFIG_KSU_KPROBES_KSUD is not set" >> .config
+            echo "# CONFIG_KSU_HACK_ARM64_BRANCH_LINK is not set" >> .config
+            echo "# CONFIG_KSU_TAMPER_SYSCALL_TABLE is not set" >> .config
+          fi
+
           # El gcc de Ubuntu se llama aarch64-linux-gnu-gcc-N; el kernel espera
           # CROSS_COMPILE + "gcc", asi que se apunta CC directamente.
           make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$CCOMP" LOCALVERSION= olddefconfig
+          if [ "${{ github.event.inputs.kernelsu }}" = "si" ]; then
+            echo "--- KSU en el .config final ---"
+            grep -E "^CONFIG_KSU" .config || { echo "ERROR: KSU no quedo en el config"; exit 1; }
+          fi
           echo "--- diferencias contra el config de la caja ---"
           diff <(grep '^CONFIG' ../device_tree/kernel/walley_defconfig | sort) \
                <(grep '^CONFIG' .config | sort) | head -60 || true

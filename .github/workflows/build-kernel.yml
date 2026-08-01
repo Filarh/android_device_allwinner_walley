@@ -18,8 +18,11 @@ name: Compilar kernel
 "on":
   workflow_dispatch:
     inputs:
+      kernel_repo:
+        description: "Repo del kernel"
+        default: "https://github.com/orangepi-xunlong/linux-orangepi.git"
       kernel_branch:
-        description: "Rama del arbol de OrangePi"
+        description: "Rama"
         default: "orange-pi-4.9-sun50iw9"
       gcc:
         description: "Version de gcc cruzado (9, 10, 11, 12)"
@@ -76,7 +79,7 @@ jobs:
           set -euo pipefail
           git clone --depth=1 --single-branch \
             -b "${{ github.event.inputs.kernel_branch }}" \
-            https://github.com/orangepi-xunlong/linux-orangepi.git kernel
+            "${{ github.event.inputs.kernel_repo }}" kernel
           cd kernel
           echo "--- version del arbol ---"
           head -5 Makefile

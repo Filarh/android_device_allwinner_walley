@@ -1,0 +1,29 @@
+# TWRP fstab de la ATV-X3PLUS. Nombres y tamanos verificados contra
+# /proc/partitions y /dev/block/by-name/ de la caja.
+#
+# Para las logicas el campo device es el NOMBRE de la particion, no un path.
+# NO agregar avb= : ver BoardConfig.mk.
+
+# mount point  fstype  device                          flags
+/system        ext4    system                          flags=display="System";logical;slotselect=0
+/vendor        ext4    vendor                          flags=display="Vendor";logical;slotselect=0
+/product       ext4    product                         flags=display="Product";logical;slotselect=0
+
+/data          f2fs    /dev/block/by-name/UDISK        flags=display="Data";wipeingui
+/cache         ext4    /dev/block/by-name/cache        flags=display="Cache"
+/metadata      ext4    /dev/block/by-name/metadata     flags=display="Metadata"
+
+/boot          emmc    /dev/block/by-name/boot         flags=display="Boot";backup=1;flashimg=1
+/recovery      emmc    /dev/block/by-name/recovery     flags=display="Recovery";backup=1;flashimg=1
+/super         emmc    /dev/block/by-name/super        flags=display="Super";backup=1;flashimg=1
+/bootloader    emmc    /dev/block/by-name/bootloader   flags=display="Bootloader";backup=1;flashimg=1
+/env           emmc    /dev/block/by-name/env          flags=display="Env";backup=1;flashimg=1
+/misc          emmc    /dev/block/by-name/misc         flags=display="Misc"
+/vbmeta        emmc    /dev/block/by-name/vbmeta       flags=display="Vbmeta";backup=1;flashimg=1
+/vbmeta_system emmc    /dev/block/by-name/vbmeta_system flags=display="Vbmeta System";backup=1;flashimg=1
+/vbmeta_vendor emmc    /dev/block/by-name/vbmeta_vendor flags=display="Vbmeta Vendor";backup=1;flashimg=1
+/private       emmc    /dev/block/by-name/private      flags=display="Private";backup=1;flashimg=1
+/frp           emmc    /dev/block/by-name/frp          flags=display="FRP";backup=1;flashimg=1
+/Reserve0      emmc    /dev/block/by-name/Reserve0     flags=display="Reserve0";backup=1;flashimg=1
+
+/usb-otg       auto    /dev/block/sda1                 flags=display="USB";storage;wipeingui;removable

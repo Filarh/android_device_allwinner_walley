@@ -1,0 +1,17 @@
+# Control remoto infrarrojo en el recovery.
+#
+# Copiado del init.recovery.sun50iw9p1.rc de fabrica, que YA hacia esto: el
+# recovery stock maneja el mando. El binario es el del recovery (20332 bytes),
+# no el de /system (34740): no usa binder y solo pide las siete librerias
+# estandar, que TWRP ya tiene.
+#
+# OJO CON EL seclabel: el original es u:r:multi_ir:s0, un dominio que solo
+# existe en la politica de fabrica. En TWRP hay que usar uno que su politica
+# tenga (recovery, o su) o el servicio no arranca y el mando no responde.
+service multi_ir /system/bin/multi_ir
+    user system
+    group system input uhid
+    seclabel u:r:recovery:s0
+
+on boot
+    start multi_ir

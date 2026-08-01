@@ -1,0 +1,89 @@
+name: Compilar TWRP
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest_branch:
+        description: 'Rama del manifiesto TWRP'
+        required: true
+        default: 'twrp-12.1'
+      target:
+        description: 'Objetivo (recoveryimage o bootimage)'
+        required: true
+        default: 'recoveryimage'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      # Los runners traen ~72 GB de los que mas de 50 ya estan ocupados.
+      # Sin esto no entra el arbol de AOSP.
+      - name: Liberar espacio en disco
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Espacio disponible
+        run: df -h /
+
+      - name: Traer el device tree
+        uses: actions/checkout@v4
+        with:
+          path: device_tree
+
+      - name: Dependencias
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex \
+            g++-multilib gcc-multilib git gnupg gperf imagemagick \
+            lib32ncurses5-dev lib32readline-dev lib32z1-dev libelf-dev \
+            liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev \
+            libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools \
+            xsltproc zip zlib1g-dev python3 python-is-python3
+          mkdir -p ~/bin
+          curl -s https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+          chmod a+x ~/bin/repo
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Sincronizar el manifiesto minimo
+        run: |
+          git config --global user.name "ci"
+          git config --global user.email "ci@localhost"
+          git config --global color.ui false
+          mkdir -p twrp && cd twrp
+          repo init --depth=1 -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git -b ${{ github.event.inputs.manifest_branch }}
+          repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
+
+      - name: Colocar el device tree
+        run: |
+          mkdir -p twrp/device/allwinner
+          cp -r device_tree/device/allwinner/walley twrp/device/allwinner/
+          ls -la twrp/device/allwinner/walley
+
+      - name: Compilar
+        run: |
+          cd twrp
+          export ALLOW_MISSING_DEPENDENCIES=true
+          export LC_ALL=C
+          source build/envsetup.sh
+          lunch twrp_walley-eng
+          mka ${{ github.event.inputs.target }} -j$(nproc --all)
+
+      - name: Espacio tras compilar
+        if: always()
+        run: df -h /
+
+      - name: Subir la imagen
+        uses: actions/upload-artifact@v4
+        with:
+          name: recovery-walley
+          path: |
+            twrp/out/target/product/walley/recovery.img
+            twrp/out/target/product/walley/*.img
+          if-no-files-found: warn

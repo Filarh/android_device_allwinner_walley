@@ -126,13 +126,25 @@ jobs:
           set -euo pipefail
           cd kernel
           mkdir -p ../salida-mod
+          # SIN -j en el make de afuera. El Makefile declara 'all: build install'
+          # sin dependencia entre los dos targets, asi que con -j corren EN
+          # PARALELO y el cp del install busca los .ko antes de que el build los
+          # termine ("cp: cannot stat ... No such file"). El make interno ya trae
+          # su propio -j, asi que no se pierde paralelismo real.
+          #
+          # Y no se usa el target 'install': se copian los .ko a mano. Ese target
+          # hace un cp con rutas relativas a un LICHEE_MOD_DIR del sistema lichee
+          # y es fragil fuera de el.
           make -C modules/gpu \
             LICHEE_KDIR="$PWD" \
             LICHEE_MOD_DIR="$PWD/../salida-mod" \
             ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$CCOMP" LOCALVERSION= \
-            -j"$(nproc)" build install
+            build
           echo "--- modulos de GPU generados ---"
           find modules/gpu -name '*.ko' -printf '%10s %p\n' | sort -rn
+          mkdir -p ../salida-mod
+          find modules/gpu -name '*.ko' -exec cp -v {} ../salida-mod/ \;
+          test -f ../salida-mod/mali_kbase.ko || { echo "ERROR: no salio mali_kbase.ko"; exit 1; }
 
       - name: Verificar el resultado
         shell: bash

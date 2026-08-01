@@ -17,7 +17,7 @@ TARGET_CPU_VARIANT := cortex-a53
 TARGET_CPU_SMP := true
 # El binder si es de 64 bits: es el esquema "a64" (userspace 32 sobre kernel 64),
 # el mismo que usa el GSI de phh que corre en esta caja.
-TARGET_USES_64BIT_BINDER := true
+TARGET_USES_64_BIT_BINDER := true
 TARGET_BOARD_PLATFORM := cupid
 TARGET_BOOTLOADER_BOARD_NAME := sun50iw9p1
 TARGET_BOARD_SUFFIX := _64

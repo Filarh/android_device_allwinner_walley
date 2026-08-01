@@ -25,7 +25,7 @@ name: Compilar kernel
         description: "Rama"
         default: "orange-pi-4.9-sun50iw9"
       gcc:
-        description: "Version de gcc cruzado (9, 10, 11, 12)"
+        description: "Version de gcc cruzado (9, 10, 11, 12), o 'linaro5' = el Linaro GCC 5.3.1-2016.05 EXACTO del kernel de fabrica"
         default: "11"
       config:
         description: "'vivo' = el config extraido de la caja; o el nombre de un defconfig del arbol"
@@ -56,6 +56,23 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq bc bison flex libssl-dev build-essential \
             libncurses-dev python3 rsync kmod cpio device-tree-compiler
+          # 'linaro5' baja el toolchain con el que se compilo el kernel de
+          # fabrica: "gcc version 5.3.1 20160412 (Linaro GCC 5.3-2016.05)",
+          # segun su propio banner. El tarball trae ademas el binutils de la
+          # epoca, asi que el ensamblador y el linker tambien quedan igualados.
+          # Es la ultima variable que separa nuestro build del de fabrica:
+          # simbolos, initcalls y config ya se demostraron identicos.
+          if [ "${{ github.event.inputs.gcc }}" = "linaro5" ]; then
+            URL=https://releases.linaro.org/components/toolchain/binaries/5.3-2016.05/aarch64-linux-gnu/gcc-linaro-5.3.1-2016.05-x86_64_aarch64-linux-gnu.tar.xz
+            curl -fL --retry 3 -o /tmp/linaro.tar.xz "$URL"
+            mkdir -p "$HOME/linaro"
+            tar -xJf /tmp/linaro.tar.xz -C "$HOME/linaro" --strip-components=1
+            echo "$HOME/linaro/bin" >> "$GITHUB_PATH"
+            echo "CCOMP=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+            echo "--- compilador elegido ---"
+            "$HOME/linaro/bin/aarch64-linux-gnu-gcc" --version | head -1
+            exit 0
+          fi
           # Se prueban varias versiones porque la disponibilidad cambia entre
           # imagenes del runner. Se usa la primera que instale.
           CC=""

@@ -51,7 +51,11 @@ BOARD_KERNEL_CMDLINE := selinux=1 androidboot.selinux=permissive androidboot.dtb
 
 # Kernel prebuilt sacado del recovery de fabrica (18651144 bytes, sin comprimir)
 TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/kernel
-TARGET_PREBUILT_DTB    := $(DEVICE_PATH)/prebuilt/dtb.img
+# El DTB va como DIRECTORIO con archivos .dtb, no como una imagen suelta: el
+# build concatena *.dtb para armar dtb.img. Con TARGET_PREBUILT_DTB (que no es
+# una variable real de AOSP) ninja falla con
+#   'out/target/product/walley/dtb.img' missing and no known rule to make it
+BOARD_PREBUILT_DTBIMAGE_DIR := $(DEVICE_PATH)/prebuilt/dtb
 BOARD_INCLUDE_DTB_IN_BOOTIMG := true
 
 # --- Particiones ------------------------------------------------------------

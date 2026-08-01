@@ -76,6 +76,17 @@ BOARD_SB_SIZE                := 2139095040
 BOARD_SB_PARTITION_LIST      := system vendor product
 TARGET_USES_LOGICAL_PARTITIONS := true
 
+# vendor ES una particion propia (logica, dentro de super). Hay que decirlo:
+# sin esto AOSP asume que vive dentro de system y crea root/vendor como SYMLINK.
+# Pero el HAL de salud instala su manifiesto VINTF en
+# recovery/root/vendor/etc/vintf/manifest/, creando ahi un DIRECTORIO real, y
+# el rsync que arma el ramdisk muere con
+#   could not make way for new symlink: root/vendor
+#   cannot delete non-empty directory: root/vendor
+# Declarandolo, root/vendor pasa a ser punto de montaje y no hay conflicto.
+TARGET_COPY_OUT_VENDOR := vendor
+BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
+
 # --- AVB --------------------------------------------------------------------
 # NO declarar avb= en el fstab: el u-boot de esta caja no pasa
 # androidboot.vbmeta.{size,hash_alg,digest}, asi que AvbHandle::Open() falla.

@@ -93,6 +93,18 @@ BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
 # Ver docs/05-causa-raiz.md y docs/14-nice_to_have.md seccion 4.
 BOARD_AVB_ENABLE := false
 
+# --- Cosas que faltaban, encontradas revisando el arbol entero -------------
+# TWRP usa esta variable para el fstab. Declararlo ademas con PRODUCT_COPY_FILES
+# genera una regla de instalacion duplicada.
+TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/recovery.fstab
+# Sin esto el framebuffer puede salir negro o con los colores invertidos.
+TARGET_RECOVERY_PIXEL_FORMAT := "RGBX_8888"
+# Sin esto TWRP no formatea ext4 en dispositivos de Android 10+.
+TARGET_USES_MKE2FS := true
+# La caja tiene particion metadata (mmcblk0p11, 16 MB).
+BOARD_USES_METADATA_PARTITION := true
+TARGET_NO_BOOTLOADER := true
+
 # --- TWRP -------------------------------------------------------------------
 TW_THEME := landscape_hdpi
 TW_HAVE_SELINUX := true
@@ -100,7 +112,11 @@ TARGET_SCREEN_WIDTH  := 1280
 TARGET_SCREEN_HEIGHT := 720
 BOARD_HAS_NO_REAL_SDCARD := true
 RECOVERY_SDCARD_ON_DATA := true
-TW_INCLUDE_REPACKTOOLS := true
+# --- Tamano: la particion son 33554432 bytes y el primer build dio 34461696,
+# --- o sea 886 KB de mas. El kernel son 18,6 MB sin comprimir y no se puede
+# --- tocar, asi que hay que recortar del ramdisk.
+TW_EXCLUDE_APEX := true
+TW_EXCLUDE_TWRPAPP := true
 TW_EXCLUDE_MTP := true
 TW_NO_SCREEN_TIMEOUT := true
 TW_NO_USB_STORAGE := true
@@ -108,3 +124,4 @@ TW_INPUT_BLACKLIST := "hbtp_vm"
 TW_EXTRA_LANGUAGES := false
 TW_DEFAULT_BRIGHTNESS := 255
 TW_USE_TOOLBOX := true
+TW_DEVICE_VERSION := walley-1

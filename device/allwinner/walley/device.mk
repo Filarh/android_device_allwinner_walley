@@ -6,14 +6,18 @@ LOCAL_PATH := device/allwinner/walley
 TARGET_RECOVERY_DEVICE_MODULES += multi_ir
 PRODUCT_PACKAGES += multi_ir
 
+# El .rc va a la RAIZ del ramdisk como init.recovery.<ro.hardware>.rc, que es
+# el nombre que init carga solo -- igual que el recovery de fabrica. El build
+# de AOSP preserva los init.recovery.*.rc de la raiz y BORRA cualquier otro
+# init*.rc, asi que ponerlo en /system/etc/init/ no habria funcionado.
 PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/recovery/root/system/etc/init/multi_ir.rc:recovery/root/system/etc/init/multi_ir.rc
+    $(LOCAL_PATH)/recovery/root/init.recovery.sun50iw9p1.rc:recovery/root/init.recovery.sun50iw9p1.rc
 
 PRODUCT_COPY_FILES += $(foreach f,$(wildcard $(LOCAL_PATH)/recovery/root/system/usr/keylayout/*.kl),\
     $(f):recovery/root/system/usr/keylayout/$(notdir $(f)))
 
-PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/recovery.fstab:recovery/root/system/etc/recovery.fstab
+# El fstab NO se copia aca: se declara con TARGET_RECOVERY_FSTAB en el
+# BoardConfig. Hacer las dos cosas genera una regla de instalacion duplicada.
 
 # Sin bootctrl ni el HAL de boot: esta caja NO es A/B. Tiene particiones
 # boot y recovery dedicadas y un solo slot.

@@ -63,8 +63,14 @@ jobs:
           # Es la ultima variable que separa nuestro build del de fabrica:
           # simbolos, initcalls y config ya se demostraron identicos.
           if [ "${{ github.event.inputs.gcc }}" = "linaro5" ]; then
-            URL=https://releases.linaro.org/components/toolchain/binaries/5.3-2016.05/aarch64-linux-gnu/gcc-linaro-5.3.1-2016.05-x86_64_aarch64-linux-gnu.tar.xz
+            # releases.linaro.org ya no sirve archivos (redirige todo a una
+            # pagina de contacto); el tarball original sobrevive en el
+            # Internet Archive. El sufijo id_ pide los bytes crudos.
+            URL="https://web.archive.org/web/20200619152911id_/http://releases.linaro.org/components/toolchain/binaries/5.3-2016.05/aarch64-linux-gnu/gcc-linaro-5.3.1-2016.05-x86_64_aarch64-linux-gnu.tar.xz"
             curl -fL --retry 3 -o /tmp/linaro.tar.xz "$URL"
+            SZ=$(stat -c %s /tmp/linaro.tar.xz)
+            echo "descargado: $SZ bytes"
+            [ "$SZ" -gt 50000000 ] || { echo "ERROR: eso no es el toolchain (¿pagina HTML?)"; exit 1; }
             mkdir -p "$HOME/linaro"
             tar -xJf /tmp/linaro.tar.xz -C "$HOME/linaro" --strip-components=1
             echo "$HOME/linaro/bin" >> "$GITHUB_PATH"

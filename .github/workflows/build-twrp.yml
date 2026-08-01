@@ -81,11 +81,21 @@ jobs:
           BP=$(ls external/lptools/Android.bp vendor/lptools/Android.bp 2>/dev/null | head -1)
           if [ -z "$BP" ]; then echo "ERROR: no encuentro el Android.bp de lptools"; find . -maxdepth 3 -path ./out -prune -o -name Android.bp -path '*lptools*' -print; exit 1; fi
           echo "usando $BP"
-          if grep -q 'recovery_available' "$BP"; then
-            echo "ya declara recovery_available, no hay nada que hacer"
+          # OJO: tiene que ser 'recovery: true', NO 'recovery_available: true'.
+          # No son lo mismo:
+          #   recovery_available -> crea una variante de recovery ADEMAS de la
+          #     normal. PRODUCT_PACKAGES apunta entonces a la del sistema, que no
+          #     se compila cuando solo pedimos 'recoveryimage'. El binario nunca
+          #     llega al ramdisk. Fue lo que paso en el #12: el parche se aplico,
+          #     el log lo confirmo, y lptools igual no aparecio.
+          #   recovery -> el modulo existe SOLO para el recovery y se instala en
+          #     el ramdisk. Es lo que usa multi_ir, que si funciona.
+          sed -i 's/^\( *\)recovery_available: *true,/\1recovery: true,/' "$BP"
+          if grep -qE '^\s*recovery: *true,' "$BP"; then
+            echo "ya declara recovery: true"
           else
-            sed -i '0,/name: "lptools",/s//name: "lptools",\n    recovery_available: true,/' "$BP"
-            grep -q 'recovery_available: true' "$BP" || { echo "ERROR: el parche no se aplico"; exit 1; }
+            sed -i '0,/name: "lptools",/s//name: "lptools",\n    recovery: true,/' "$BP"
+            grep -qE '^\s*recovery: *true,' "$BP" || { echo "ERROR: el parche no se aplico"; exit 1; }
           fi
           head -8 "$BP"
 

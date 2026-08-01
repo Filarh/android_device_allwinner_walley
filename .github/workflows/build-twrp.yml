@@ -66,23 +66,28 @@ jobs:
           cp -r device_tree/device/allwinner/walley twrp/device/allwinner/
           ls -la twrp/device/allwinner/walley
 
-      # lptools no viene en el manifiesto minimo de TWRP: hay que traerlo.
-      # Es la unica herramienta que rehace el mapeo dm-linear de una particion
-      # logica con force_writable=true, o sea la unica forma de escribir en
-      # system/vendor/product, que en super estan marcadas READONLY.
+      # lptools YA viene en el arbol, en external/lptools -- aunque no figure en
+      # default.xml del manifiesto. Clonarlo aparte en vendor/lptools rompio el
+      # build #11 con "module lptools already defined". Aca solo hay que darle
+      # recovery_available, porque sin eso Soong no lo instala en el ramdisk del
+      # recovery y el binario no aparece (fue lo que paso en el #10).
       #
-      # Ademas su Android.bp no declara recovery_available, asi que aunque se
-      # compile no entra al ramdisk del recovery. Se parchea aca en vez de
-      # mantener un fork: es una linea y queda a la vista en el log.
-      - name: Traer lptools
+      # Es la unica herramienta que rehace el mapeo dm-linear con
+      # force_writable=true, o sea la unica forma de escribir en
+      # system/vendor/product, que en super estan marcadas READONLY.
+      - name: Habilitar lptools en el recovery
         run: |
           cd twrp
-          rm -rf vendor/lptools
-          git clone --depth=1 https://github.com/phhusson/vendor_lptools.git vendor/lptools
-          sed -i '0,/name: "lptools",/s//name: "lptools",\n    recovery_available: true,/' vendor/lptools/Android.bp
-          echo "--- Android.bp resultante ---"
-          head -14 vendor/lptools/Android.bp
-          grep -q 'recovery_available: true' vendor/lptools/Android.bp || { echo "ERROR: el parche no se aplico"; exit 1; }
+          BP=$(ls external/lptools/Android.bp vendor/lptools/Android.bp 2>/dev/null | head -1)
+          if [ -z "$BP" ]; then echo "ERROR: no encuentro el Android.bp de lptools"; find . -maxdepth 3 -path ./out -prune -o -name Android.bp -path '*lptools*' -print; exit 1; fi
+          echo "usando $BP"
+          if grep -q 'recovery_available' "$BP"; then
+            echo "ya declara recovery_available, no hay nada que hacer"
+          else
+            sed -i '0,/name: "lptools",/s//name: "lptools",\n    recovery_available: true,/' "$BP"
+            grep -q 'recovery_available: true' "$BP" || { echo "ERROR: el parche no se aplico"; exit 1; }
+          fi
+          head -8 "$BP"
 
       - name: Compilar
         run: |

@@ -18,7 +18,14 @@ cc_prebuilt_binary {
     strip: { none: true },
     check_elf_files: false,
 
-    // Va al ramdisk del recovery, no al sistema.
+    // Va al ramdisk del recovery, en /system/bin.
+    //
+    // NADA de proprietary: true. Eso lo marca como modulo de vendor y lo
+    // instala en recovery/root/vendor/, creando ahi un DIRECTORIO real.
+    // Despues el rsync que arma el ramdisk quiere poner un SYMLINK llamado
+    // 'vendor' en ese mismo lugar y muere con
+    //   could not make way for new symlink: root/vendor
+    //   cannot delete non-empty directory: root/vendor
+    // El build llega al 99% y falla en el penultimo paso.
     recovery: true,
-    proprietary: true,
 }

@@ -1474,6 +1474,14 @@ CONFIG_SUNXI_EPHY=y
 # CONFIG_DP83848_PHY is not set
 # CONFIG_DP83867_PHY is not set
 CONFIG_FIXED_PHY=y
+# El phy_device.c del arbol de OrangePi llama a yt8511_config_out_125m sin
+# ningun #ifdef que lo proteja (es un parche crudo del vendor, con printk de
+# depuracion incluidos). Como phy_device.c va compilado DENTRO del kernel, el
+# simbolo tiene que existir al enlazar o falla con "undefined reference".
+# El driver solo se activa si el PHY reporta el ID 0x4f51e91b, que no es el de
+# esta caja (usa SUNXI_EXT_PHY/SUNXI_EPHY), asi que habilitarlo es inocuo.
+# Va =y y no =m porque el llamador es built-in.
+CONFIG_MOTORCOMM_PHY=y
 # CONFIG_ICPLUS_PHY is not set
 # CONFIG_INTEL_XWAY_PHY is not set
 # CONFIG_LSI_ET1011C_PHY is not set
